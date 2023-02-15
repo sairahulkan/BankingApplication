@@ -4,6 +4,7 @@ import random
 
 print("********** CHECKPOINT: Bank Process **********")
 
+#Input port numbers
 while (True):
     serverPort = int(input("BANK:: Enter a port number from 8501 - 8999: "))
     if 8500 <= serverPort <=8999:
@@ -11,15 +12,17 @@ while (True):
     else:
         print("BANK:: Wrong port number")
 
+#create socket
 serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('', serverPort))
 
 print("BANK:: Bank Application Started")
 
+#read the database
 customer_data_file = "customer_data.csv"
 customer_fields = ["name", "balance", "ip_address", "port1", "port2", "cohort", "exit_state"]
 customers = []
-
+cohortNumber = 0
 # Check if customer data file exists, create it if it doesn't
 try:
     with open(customer_data_file, "r") as file:
@@ -32,7 +35,7 @@ except FileNotFoundError:
         writer.writeheader()
 
 #add customer data
-def add_customer(name, balance, ip_address, port1, port2):
+def open_customer(name, balance, ip_address, port1, port2):
     for row in customers:
         if (row["name"] == name):
             print("BANK->CLIENT:: customer with name {0} already found in the database", name)
@@ -47,41 +50,52 @@ def add_customer(name, balance, ip_address, port1, port2):
     customer['port2'] = port2
     customer['cohort'] = 0
     customer['exit_state'] = 0
+
+    #updating the local db
     customers.append(customer)
 
+    #updating the main db
     with open(customer_data_file, "a") as file:
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writerow(customer)
     print("BANK->CLIENT:: Customer added successfully.")
     return ("SUCCESS")
 
+#creating a new cohort
 def new_cohort(name,n):
-    updateLocalCustomers()
+    #checking available customers not in any cohort
+    availablecohorts = [cust for cust in customers if (customer['cohort'] == 0)]
+    if len(availablecohorts) < n or n < 2:
+        return "FAILURE"
+    
     for cust in customers:
         if cohortNumber < cust['cohort']:
             cohortNumber = cust['cohort']
     cohortNumber += 1
-    availablecohorts = [cust for cust in customers if ((customer['cohort'] == 0) < n)]
-    if len(availablecohorts) < n:
-        return "FAILURE"
+    
+    curr_cust = []
     for customer in customers:
-        if customer["name"] == name:
-            if customer["cohort"] == 0:
-                customer["cohort"] = cohortNumber
-                break
-            else:
-                return "FAILURE"
+        if customer["name"] == name and customer["cohort"] == 0:
+            customer["cohort"] = cohortNumber
+            curr_cust.append(customer)
+            break
+        else:
+            return "FAILURE"
+            
     print("creating cohort")
     cohortTuples = random.sample(availablecohorts,n-1)
-    cohortTuples.append(customer)  
+    cohortTuples.append(curr_cust)
+      
     for cohortCustomer in cohortTuples:
         for customer in customers:
             if cohortCustomer['name'] == customer['name']:
                 customer['cohort'] = cohortNumber
+
     with open(customer_data_file, "w") as file:
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writeheader()
         writer.writerows(customers) 
+        
     for customer in cohortTuples:
         Keys = list(customer.keys())
         for key in Keys:
@@ -145,18 +159,6 @@ def exit_customer(name):
     print("BANK->CLIENT:: Customer not found.")
     return ("FAILURE")
 
-def updateLocalCustomers():
-    customers.clear()
-    try:
-        with open(customer_data_file, "r") as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                customers.append(row)
-    except FileNotFoundError:
-        with open(customer_data_file, "w") as file:
-            writer = csv.DictWriter(file, fieldnames=customer_fields)
-            writer.writeheader()
-
 while True:
     message, clientAddress = serverSocket.recvfrom(2048)
     rcvd_command = message.decode()
@@ -164,7 +166,7 @@ while True:
     command_params = rcvd_command.split(" ")
     msg =""
     if(command_params[0] == "open"):
-        msg = add_customer(command_params[1], command_params[2], command_params[3], command_params[4], command_params[5])
+        msg = open_customer(command_params[1], command_params[2], command_params[3], command_params[4], command_params[5])
     elif(command_params[0] == "exit"):
         msg = exit_customer(command_params[1])
     elif(command_params[0] == "new-cohort"):
