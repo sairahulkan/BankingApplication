@@ -1,11 +1,20 @@
 from socket import *
 import csv
 import random
-serverPort = 12000
+
+print("********** CHECKPOINT: Bank Process **********")
+
+while (True):
+    serverPort = int(input("BANK:: Enter a port number from 8501 - 8999: "))
+    if 8500 <= serverPort <=8999:
+        break
+    else:
+        print("BANK:: Wrong port number")
+
 serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('', serverPort))
 
-print("Bank Application Started")
+print("BANK:: Bank Application Started")
 
 customer_data_file = "customer_data.csv"
 customer_fields = ["name", "balance", "ip_address", "port1", "port2", "cohort", "exit_state"]
@@ -26,10 +35,10 @@ except FileNotFoundError:
 def add_customer(name, balance, ip_address, port1, port2):
     for row in customers:
         if (row["name"] == name):
-            print("customer with name {0} already found in the database", name)
+            print("BANK->CLIENT:: customer with name {0} already found in the database", name)
             return ("FAILURE")
     
-    print("Adding customer to database...")
+    print("BANK->CLIENT:: Adding customer to database...")
     customer = {}
     customer['name'] = name
     customer['balance'] = balance
@@ -43,11 +52,11 @@ def add_customer(name, balance, ip_address, port1, port2):
     with open(customer_data_file, "a") as file:
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writerow(customer)
-    print("Customer added successfully.")
+    print("BANK->CLIENT:: Customer added successfully.")
     return ("SUCCESS")
 
 def new_cohort(name,n):
-    print("creating cohort")
+    print("BANK:: creating cohort")
     availablecohorts = [customer for customer in customers if ((customer['cohort'] == 0) < n)]
     if len(availablecohorts) < n:
         return "FAILURE"
@@ -94,7 +103,7 @@ def delete_cohort(name):
 
 #deleting the customer data
 def exit_customer(name):
-    print("Customer exiting the application:")
+    print("BANK->CLIENT:: Customer exiting the application:")
     customer_name = name
     for customer in customers:
         if customer["name"] == customer_name:
@@ -103,9 +112,9 @@ def exit_customer(name):
                 writer = csv.DictWriter(file, fieldnames=customer_fields)
                 writer.writeheader()
                 writer.writerows(customers)
-            print("Customer exited successfully.")
+            print("BANK->CLIENT:: Customer exited successfully.")
             return ("SUCCESS")     
-    print("Customer not found.")
+    print("BANK->CLIENT:: Customer not found.")
     return ("FAILURE")
 
 
