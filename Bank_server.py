@@ -25,8 +25,9 @@ except FileNotFoundError:
 #add customer data
 def add_customer(name, balance, ip_address, port1, port2):
     for row in customers:
-        if (row["name"] == name and row["ip_address"] == ip_address and row["port1"] == port1 and row["port2"] == port2):
-            return ("Customer Already exists!!")
+        if (row["name"] == name):
+            print("customer with name {0} already found in the database", name)
+            return ("FAILURE")
     
     print("Adding customer to database...")
     customer = {}
@@ -43,15 +44,53 @@ def add_customer(name, balance, ip_address, port1, port2):
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writerow(customer)
     print("Customer added successfully.")
-    return ("Customer added successfully.")
+    return ("SUCCESS")
 
-def new_cohert(name,n):
-    print("creating Cohert")
-    availableCoherts = [customer for customer in customers if ((customer['cohort'] == 0) < n)]
-    if len(availableCoherts) < n:
+def new_cohort(name,n):
+    print("creating cohort")
+    availablecohorts = [customer for customer in customers if ((customer['cohort'] == 0) < n)]
+    if len(availablecohorts) < n:
         return "FAILURE"
+
+#deleting the cohort   
+def delete_cohort(name):
+    #fetch the cohort number and delete the cohort information in the database
+    cohort_num = 0
+    for customer in customers:
+        if(customer["name"] == name):
+            cohort_num = customer["cohort"]
+            if cohort_num == 0:
+                return "FAILURE"
+            break
+
+    #fetching the customers with same cohort 
+    customer_in_cohort = {}
+    for customer in customers:
+        temp_cust = []
+        if(customer["cohort"] == cohort_num):
+            customer["cohort"] = 0
+            temp_cust['ip_address'] = customer['ip_address']
+            temp_cust['port2'] = customer['port2']
+            customer_in_cohort.append(temp_cust)
+
+    msg = "delete-cohort"
+    flag = True
+    for cust_in_coh in customer_in_cohort:
+        serverSocket.sendto(msg.encode(), (cust_in_coh['ip_address'], int(cust_in_coh['port2'])))
+        reply, cust_address = serverSocket.recvfrom(2048)
+        if(reply != "SUCCESS"):
+            flag = False
+            break
     
-    
+    if(flag == False):
+        return "FAILURE"
+    else:
+        with open(customer_data_file, "w") as file:
+            writer = csv.DictWriter(file, fieldnames=customer_fields)
+            writer.writeheader()
+            writer.writerows(customers)
+        return "SUCCESS"
+
 
 #deleting the customer data
 def exit_customer(name):
@@ -65,7 +104,7 @@ def exit_customer(name):
                 writer.writeheader()
                 writer.writerows(customers)
             print("Customer exited successfully.")
-            return ("SUCCESS")        
+            return ("SUCCESS")     
     print("Customer not found.")
     return ("FAILURE")
 
@@ -80,7 +119,9 @@ while True:
         msg = add_customer(command_params[1], command_params[2], command_params[3], command_params[4], command_params[5])
     elif(command_params[0] == "exit"):
         msg = exit_customer(command_params[1])
-    elif(command_params[0] == "new-cohert"):
-        msg = new_cohert(command_params[1],command_params[2])
+    elif(command_params[0] == "new-cohort"):
+        msg = new_cohort(command_params[1],command_params[2])
+    elif(command_params[0] == "delete-cohort"):
+        msg = delete_cohort(command_params[1])
 
     serverSocket.sendto(msg.encode(), clientAddress)
