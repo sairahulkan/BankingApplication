@@ -56,10 +56,38 @@ def add_customer(name, balance, ip_address, port1, port2):
     return ("SUCCESS")
 
 def new_cohort(name,n):
-    print("BANK:: creating cohort")
-    availablecohorts = [customer for customer in customers if ((customer['cohort'] == 0) < n)]
+    updateLocalCustomers()
+    for cust in customers:
+        if cohortNumber < cust['cohort']:
+            cohortNumber = cust['cohort']
+    cohortNumber += 1
+    availablecohorts = [cust for cust in customers if ((customer['cohort'] == 0) < n)]
     if len(availablecohorts) < n:
         return "FAILURE"
+    for customer in customers:
+        if customer["name"] == name:
+            if customer["cohort"] == 0:
+                customer["cohort"] = cohortNumber
+                break
+            else:
+                return "FAILURE"
+    print("creating cohort")
+    cohortTuples = random.sample(availablecohorts,n-1)
+    cohortTuples.append(customer)  
+    for cohortCustomer in cohortTuples:
+        for customer in customers:
+            if cohortCustomer['name'] == customer['name']:
+                customer['cohort'] = cohortNumber
+    with open(customer_data_file, "w") as file:
+        writer = csv.DictWriter(file, fieldnames=customer_fields)
+        writer.writeheader()
+        writer.writerows(customers) 
+    for customer in cohortTuples:
+        Keys = list(customer.keys())
+        for key in Keys:
+            if key not in ['name', 'balance', 'ip_address', 'port1','port2']:
+                del customer[key]   
+    return cohortTuples
 
 #deleting the cohort   
 def delete_cohort(name):
@@ -117,6 +145,17 @@ def exit_customer(name):
     print("BANK->CLIENT:: Customer not found.")
     return ("FAILURE")
 
+def updateLocalCustomers():
+    customers.clear()
+    try:
+        with open(customer_data_file, "r") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                customers.append(row)
+    except FileNotFoundError:
+        with open(customer_data_file, "w") as file:
+            writer = csv.DictWriter(file, fieldnames=customer_fields)
+            writer.writeheader()
 
 while True:
     message, clientAddress = serverSocket.recvfrom(2048)
