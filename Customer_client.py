@@ -17,20 +17,23 @@ def bankWorker(input_command):
     global exit_flag        
     print("CLIENT->BANK:: Inside Bank Thread")
     command_bank = input_command
-    print("command: ", command_bank)
+    print("CLIENT->BANK:: command: ", command_bank)
     #sending command to bank
-    print("Sending command to bank")
+    print("CLIENT->BANK:: Sending command to bank")
     clientSocketBank.sendto(command_bank.encode(), (serverName, serverPort))
-    print("Waiting for response..")
+    print("CLIENT->BANK:: Waiting for response..")
     #waiting for response from bank
     serverResponse, serverAddress = clientSocketBank.recvfrom(2048)
     #decoding response
     rcvd_msg = serverResponse.decode()
-    print("Response received")
+    print("CLIENT->BANK:: Response received")
     print(rcvd_msg)
 
     msg_cmd = command_bank.split(" ")
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
+        cohort_tuple = eval(rcvd_msg)
+        print(type(cohort_tuple))
+        print(cohort_tuple)
         sendCohortDetailsToPeers(rcvd_msg)
     
     if(msg_cmd[0] == "exit" and rcvd_msg == "SUCCESS"):
