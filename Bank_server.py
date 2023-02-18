@@ -34,6 +34,12 @@ except FileNotFoundError:
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writeheader()
 
+#printing the customer data
+def print_customer_data():
+    for customer in customers:
+        print(customer)
+
+
 #add customer data
 def open_customer(name, balance, ip_address, port1, port2):
     print(customers)

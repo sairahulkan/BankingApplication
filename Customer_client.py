@@ -4,17 +4,35 @@ from socket import *
 exit_flag = False
 
 #cohort details
-cohort_tuple = {}
+cohort_tuple = []
 
 #cmd input
 input_command = ""
 
-def sendCohortDetailsToPeers(rcvd_msg):
-    print("Sending cohort details to peers: ", rcvd_msg)
+def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
+    print("Sending cohort details to peers: ", cohort_tuple)
+    # Get the hostname of the current machine
+    hostname = socket.gethostname()
 
+    # Get the IP address of the current machine
+    ip_address = socket.gethostbyname(hostname)
 
-def bankWorker(input_command):
-    global exit_flag        
+    for peer in cohort_tuple:
+        tupleMsg = str(cohort_tuple)
+        peerName = peer['ip_address']
+        peerSocket = int(peer['port2'])
+        flag = (ip_address != peerName) or ((ip_address == peerName) and (clientPortBank != int(peer['port1']) and clientPortPeer != peerSocket))
+        if(flag):
+            clientSocketPeer.sendto(tupleMsg.encode(), (peerName, peerSocket))
+            peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
+            if(peerResponse == "SUCCESS"):
+                print("CLIENT->PEER:: Cohort details successfully sent to client: ", peer['name'])
+            else:
+                print("CLIENT->PEER:: Failed to send the cohort details to client: ", peer['name'])
+
+def bankWorker(input_command, clientPortBank, clientPortPeer):
+    global exit_flag  
+    global cohort_tuple     
     print("CLIENT->BANK:: Inside Bank Thread")
     command_bank = input_command
     print("CLIENT->BANK:: command: ", command_bank)
@@ -31,10 +49,11 @@ def bankWorker(input_command):
 
     msg_cmd = command_bank.split(" ")
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
-        cohort_tuple = eval(rcvd_msg)
-        print(type(cohort_tuple))
-        print(cohort_tuple)
-        sendCohortDetailsToPeers(rcvd_msg)
+        cohort_tuple.append(eval(rcvd_msg))
+        sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer)
+    
+    if(msg_cmd[0] == "delete-cohort" and rcvd_msg == "SUCCESS"):
+        cohort_tuple.clear()
     
     if(msg_cmd[0] == "exit" and rcvd_msg == "SUCCESS"):
         exit_flag = True
@@ -46,7 +65,7 @@ def peerWorker(input_command):
     if not exit_flag:
         print("CLIENT->PEER:: Inside Peer thread")
         command_peer = input_command
-        print("commad: ", command_peer)
+        print("command: ", command_peer)
         clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
         peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
         rcvd_msg = peerResponse.decode()
@@ -85,7 +104,7 @@ if __name__ == "__main__":
         user_input_command = input("CLIENT:: Enter the command: ")
         cmd = user_input_command.split(" ")
         if(cmd[0] == "open" or cmd[0] == "new-cohort" or cmd[0] == "delete-cohort" or cmd[0] == "exit"):
-            bankWorker(user_input_command)
+            bankWorker(user_input_command, clientPortBank, clientPortPeer)
         elif(cmd[0] == "deposit" or cmd[0] == "withdrawal" or cmd[0] == "transfer" or cmd[0] == "lost-transfer" or cmd[0] == "checkpoint" or cmd[0] == "rollback"):
             peerWorker(user_input_command)
 
