@@ -150,7 +150,8 @@ def delete_cohort(name):
     cohort_num = 0
     for customer in customers:
         if(customer["name"] == name):
-            cohort_num = customer["cohort"]
+            cohort_num = customer['cohort']
+            customer['cohort'] = 0
             if cohort_num == 0:
                 print("fail 3")
                 return "FAILURE"
@@ -160,18 +161,21 @@ def delete_cohort(name):
     customer_in_cohort = []
     for customer in customers:
         temp_cust = {}
-        if(customer["cohort"] == cohort_num):
-            customer["cohort"] = 0
+        if(customer['cohort'] == cohort_num):
+            print("/nNulling"+customer["name"])
+            customer['cohort'] = 0
+            temp_cust['name'] = customer['name']
             temp_cust['ip_address'] = customer['ip_address']
-            temp_cust['port2'] = customer['port2']
+            temp_cust['port1'] = customer['port1']
             customer_in_cohort.append(temp_cust)
 
     msg = "delete-cohort"
     flag = True
     for cust_in_coh in customer_in_cohort:
-        serverSocket.sendto(msg.encode(), (cust_in_coh['ip_address'], int(cust_in_coh['port2'])))
+        print("bank-sending to customer")
+        serverSocket.sendto(msg.encode(), (cust_in_coh['ip_address'], int(cust_in_coh['port1'])))
         reply, cust_address = serverSocket.recvfrom(2048)
-        if(reply != "SUCCESS"):
+        if(reply.decode() != "SUCCESS"):
             flag = False
             break
     
