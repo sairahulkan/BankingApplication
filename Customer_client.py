@@ -1,5 +1,7 @@
+import socket
 from socket import *
-
+import select
+import sys
 #required flags
 exit_flag = False
 
@@ -14,16 +16,16 @@ def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
     # Get the hostname of the current machine
     hostname = socket.gethostname()
 
-    # Get the IP address of the current machine
+    # Get the IP address of the current process
     ip_address = socket.gethostbyname(hostname)
 
     for peer in cohort_tuple:
         tupleMsg = str(cohort_tuple)
-        peerName = peer['ip_address']
+        peerAddress = peer['ip_address']
         peerSocket = int(peer['port2'])
-        flag = (ip_address != peerName) or ((ip_address == peerName) and (clientPortBank != int(peer['port1']) and clientPortPeer != peerSocket))
+        flag = (ip_address != peerAddress) or ((ip_address == peerAddress) and (clientPortBank != int(peer['port1']) and clientPortPeer != peerSocket))
         if(flag):
-            clientSocketPeer.sendto(tupleMsg.encode(), (peerName, peerSocket))
+            clientSocketPeer.sendto(tupleMsg.encode(), (peerAddress, peerSocket))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             if(peerResponse == "SUCCESS"):
                 print("CLIENT->PEER:: Cohort details successfully sent to client: ", peer['name'])
@@ -95,22 +97,35 @@ if __name__ == "__main__":
     
     clientSocketBank = socket(AF_INET, SOCK_DGRAM)
     clientSocketBank.bind(('', clientPortBank))
-
+    
     clientSocketPeer = socket(AF_INET, SOCK_DGRAM)
     clientSocketPeer.bind(('', clientPortPeer))
-
-
+    
+    sockets = []
+    sockets.append(clientSocketBank)
+    sockets.append(clientSocketPeer)
     while not exit_flag:
-        user_input_command = input("CLIENT:: Enter the command: ")
-        cmd = user_input_command.split(" ")
-        if(cmd[0] == "open" or cmd[0] == "new-cohort" or cmd[0] == "delete-cohort" or cmd[0] == "exit"):
-            bankWorker(user_input_command, clientPortBank, clientPortPeer)
-        elif(cmd[0] == "deposit" or cmd[0] == "withdrawal" or cmd[0] == "transfer" or cmd[0] == "lost-transfer" or cmd[0] == "checkpoint" or cmd[0] == "rollback"):
-            peerWorker(user_input_command)
-
-        else:
-            print("Wrong command")
-
-
+        print("CLIENT:: Enter the command: ")
+        readable, writable, exceptional = select.select(sockets + [sys.stdin], [], [])
+        for sock in readable:
+            if sock is sys.stdin:
+                user_input_command = sys.stdin.readline().strip()
+                cmd = user_input_command.split(" ")
+                if(cmd[0] == "open" or cmd[0] == "new-cohort" or cmd[0] == "delete-cohort" or cmd[0] == "exit"):
+                    bankWorker(user_input_command, clientPortBank, clientPortPeer)
+                elif(cmd[0] == "deposit" or cmd[0] == "withdrawal" or cmd[0] == "transfer" or cmd[0] == "lost-transfer" or cmd[0] == "checkpoint" or cmd[0] == "rollback"):
+                    peerWorker(user_input_command)
+                else:
+                    print("Wrong command")
+            if sock is clientSocketBank:
+                msg,ret_address = clientSocketBank.recvfrom(1024)
+                if (msg.decode() == "delete-cohort"):
+                    cohort_tuple = []
+                    clientSocketBank.sendto("SUCCESS",ret_address)
+            if sock is clientSocketPeer:
+                msg,ret_address = clientSocketBank.recvfrom(1024)
+                cohort_tuple.append(msg.decode())
+                clientSocketBank.sendto("SUCCESS",ret_address)
+        
     print("Exiting bank application")
     clientSocketPeer.close()

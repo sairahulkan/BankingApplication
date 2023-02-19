@@ -157,9 +157,9 @@ def delete_cohort(name):
             break
 
     #fetching the customers with same cohort 
-    customer_in_cohort = {}
+    customer_in_cohort = []
     for customer in customers:
-        temp_cust = []
+        temp_cust = {}
         if(customer["cohort"] == cohort_num):
             customer["cohort"] = 0
             temp_cust['ip_address'] = customer['ip_address']
