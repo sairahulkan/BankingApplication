@@ -13,11 +13,7 @@ input_command = ""
 
 def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
     print("Sending cohort details to peers: ", cohort_tuple)
-    # Get the hostname of the current machine
-    hostname = socket.gethostname()
-
-    # Get the IP address of the current process
-    ip_address = socket.gethostbyname(hostname)
+    (ip_address, port) = clientSocketBank.getsockname()
 
     for peer in cohort_tuple:
         tupleMsg = str(cohort_tuple)
@@ -25,9 +21,10 @@ def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
         peerSocket = int(peer['port2'])
         flag = (ip_address != peerAddress) or ((ip_address == peerAddress) and (clientPortBank != int(peer['port1']) and clientPortPeer != peerSocket))
         if(flag):
+            print("passed flag")
             clientSocketPeer.sendto(tupleMsg.encode(), (peerAddress, peerSocket))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
-            if(peerResponse == "SUCCESS"):
+            if(peerResponse.decode() == "SUCCESS"):
                 print("CLIENT->PEER:: Cohort details successfully sent to client: ", peer['name'])
             else:
                 print("CLIENT->PEER:: Failed to send the cohort details to client: ", peer['name'])
@@ -51,7 +48,7 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
 
     msg_cmd = command_bank.split(" ")
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
-        cohort_tuple.append(eval(rcvd_msg))
+        cohort_tuple = (eval(rcvd_msg))
         sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer)
     
     if(msg_cmd[0] == "delete-cohort" and rcvd_msg == "SUCCESS"):
@@ -118,14 +115,16 @@ if __name__ == "__main__":
                 else:
                     print("Wrong command")
             if sock is clientSocketBank:
+                print("received delete-cohort")
                 msg,ret_address = clientSocketBank.recvfrom(1024)
                 if (msg.decode() == "delete-cohort"):
                     cohort_tuple = []
-                    clientSocketBank.sendto("SUCCESS",ret_address)
+                    clientSocketBank.sendto("SUCCESS".encode(),ret_address)
             if sock is clientSocketPeer:
-                msg,ret_address = clientSocketBank.recvfrom(1024)
-                cohort_tuple.append(msg.decode())
-                clientSocketBank.sendto("SUCCESS",ret_address)
+                print("received tuple")
+                msg,ret_address = clientSocketPeer.recvfrom(1024)
+                cohort_tuple = (msg.decode())
+                clientSocketBank.sendto("SUCCESS".encode(),ret_address)
         
     print("Exiting bank application")
     clientSocketPeer.close()
