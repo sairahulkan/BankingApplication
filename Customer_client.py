@@ -19,7 +19,7 @@ def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
         tupleMsg = str(cohort_tuple)
         peerAddress = peer['ip_address']
         peerSocket = int(peer['port2'])
-        flag = (ip_address != peerAddress) or ((ip_address == peerAddress) and (clientPortBank != int(peer['port1']) and clientPortPeer != peerSocket))
+        flag = (ip_address != peerAddress) or ((ip_address == peerAddress) and (int(clientPortBank) != int(peer['port1']) and int(clientPortPeer) != peerSocket))
         if(flag):
             print("passed flag")
             clientSocketPeer.sendto(tupleMsg.encode(), (peerAddress, peerSocket))
