@@ -15,7 +15,7 @@ while (True):
 #create socket
 serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('', serverPort))
-print("\nBANK:: Bank Socket created\n\n")
+print("\nBANK:: Bank Socket created successfully.")
 
 #read the database
 customer_data_file = "data.csv"
@@ -54,7 +54,7 @@ def open_customer(name, balance, ip_address, port1, port2):
                 row['port1'] = port1
                 row['port2'] = port2
                 row['cohort'] = '0'
-                print(f"BANK->CLIENT:: Welcome back {name} !!")
+                print(f"BANK->CLIENT:: Welcome back {name}!!")
                 with open(customer_data_file, "w") as file:
                     writer = csv.DictWriter(file, fieldnames=customer_fields)
                     writer.writeheader()
@@ -78,7 +78,7 @@ def open_customer(name, balance, ip_address, port1, port2):
     with open(customer_data_file, "a") as file:
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writerows(customers)
-    print(f"BANK->CLIENT:: Customer {name} added successfully.\n\n")
+    print(f"BANK->CLIENT:: Customer {name} added successfully.\n")
     return ("SUCCESS")
 
 #creating a new cohort
@@ -87,45 +87,45 @@ def new_cohort(name,n):
     global customers
     global cohortNumber
     availablecohorts = []
+
     for cust in customers:
-        #print("DEBUg:: cust: ", cust)
         if(cust['cohort'] == '0' and cust['name'] != name and cust['exit_state'] != '1'):
             availablecohorts.append(cust)
-
     print("BANK:: Available cohorts: \n", availablecohorts)
 
+    #checking the cohort length
     if len(availablecohorts)+1 < int(n) or int(n) < 2:
-        print("BANK:: Invalid cohort / Cohort limit exceeded")
+        print("BANK:: Invalid cohort / Cohort limit exceeded\n")
         return "FAILURE"
     
+    #finding cohort number to assign
     for cust in customers:
-        #print("DEBUg:: cust: ", cust)
         if cohortNumber < int(cust['cohort']):
             cohortNumber = int(cust['cohort'])
     cohortNumber += 1
-
     print("\nBANK:: Cohort number to be assigned: ", cohortNumber)
     
+    #finding if the current customer is already in any cohort
     curr_cust = {}
     for customer in customers:
-        print("DEBUG:: customer: ", customer)
         if customer["name"] == name:
             if(customer['cohort'] != '0'):
+                print("\nBANK:: Customer already present in the cohort ", customer['cohort'])
                 return "FAILURE"
             else:
                 customer['cohort'] = str(cohortNumber)
                 curr_cust = customer
-                break
-            
-    print("\nBANK:: creating cohort Tuples...")
+                break    
+    print("BANK:: creating cohort Tuples...")
+
+    #randomly choosing the customers
     num = int(n)
     cohortTuples = random.sample(availablecohorts,num-1)
     cohortTuples.append(curr_cust)
-   
     print("\nBANK:: Cohort tuples: \n", cohortTuples)
 
+    #changing the cohort numbers in the database
     for cohortCustomer in cohortTuples:
-        #print("DEBUG:: cohortCustomer: ", cohortCustomer)
         for customer in customers:
             if cohortCustomer['name'] == customer['name']:
                 customer['cohort'] = str(cohortNumber)
@@ -134,13 +134,7 @@ def new_cohort(name,n):
         writer = csv.DictWriter(file, fieldnames=customer_fields)
         writer.writeheader()
         writer.writerows(customers)
-
-    '''for customer in cohortTuples:
-        Keys = list(customer.keys())
-        for key in Keys:
-            if key not in ['name', 'balance', 'ip_address', 'port1','port2']:
-                del customer[key]   
-    print("\nBANK:: Final Cohort Tuples: \n", cohortTuples)'''
+    print("\nBANK:: Cohort created successfully.\n")
     return str(cohortTuples)
 
 #deleting the cohort   
@@ -148,19 +142,19 @@ def delete_cohort(name):
     #fetch the cohort number and delete the cohort information in the database
     global customers
     cohort_num = '0'
+
+    #finding the cohort group of the customer
     for customer in customers:
-        #print("DEBUG:: customer: ", customer)
         if(customer['name'] == name):
             cohort_num = customer['cohort']
             if cohort_num == '0':
-                print(f"BANK:: Customer {name} not in any cohort.")
+                print(f"\nBANK:: Customer {name} not in any cohort.")
                 return "FAILURE"
             break
 
     #fetching the customers with same cohort 
     customer_in_cohort = []
     for customer in customers:
-        #print("DEBUG:: customer: ", customer)
         temp_cust = {}
         if(customer['cohort'] == cohort_num and customer['name'] != name):
             customer['cohort'] = '0'
@@ -169,12 +163,12 @@ def delete_cohort(name):
             customer_in_cohort.append(temp_cust)
         elif (customer['cohort'] == cohort_num and customer['name'] == name):
             customer['cohort'] = '0'
-
     print("\nBANK:: Customers in cohort: ", customer_in_cohort)
+
+    #Sending the delete-cohort command to other peers so they can delete at their end
     msg = "delete-cohort"
     flag = True
     for cust_in_coh in customer_in_cohort:
-        #print("DEBUG:: cust_in_coh: ", cust_in_coh)
         print("\nBANK:: Sending the \"delete-cohort\" command to ", cust_in_coh['ip_address'])
         serverSocket.sendto(msg.encode(), (cust_in_coh['ip_address'], int(cust_in_coh['port1'])))
         reply, cust_address = serverSocket.recvfrom(2048)
@@ -185,6 +179,7 @@ def delete_cohort(name):
         else:
             continue
     
+    #checking if all the customers have deleted the cohort
     if(flag == False):
         return "FAILURE"
     else:
@@ -198,10 +193,10 @@ def delete_cohort(name):
 #deleting the customer data
 def exit_customer(name):
     global customers
-    print(f"BANK->CLIENT:: Customer {name} trying to exit the application:")
+    print(f"BANK->CLIENT:: Customer {name} trying to exit the application.")
+
     customer_name = name
     for customer in customers:
-        #print("DEBUG:: customer: ", customer)
         #If customer is present in the db and not in any cohort, then he can exit
         if customer['name'] == customer_name and customer['cohort'] == '0':
             customer['exit_state'] = '1'
@@ -213,16 +208,16 @@ def exit_customer(name):
             return ("SUCCESS")
         #if the customer is in cohort then he cannot exit
         elif(customer['name'] == customer_name and customer['cohort'] != '0'):
-            print(f"BANK->CLIENT:: Customer {name} is already in Cohort. Hence cannot exit")
+            print(f"\nBANK->CLIENT:: Customer {name} is already in Cohort. Hence he cannot exit.\n")
             return("FAILURE")
-    print(f"BANK->CLIENT:: Customer {name} not found.")
+    print(f"\nBANK->CLIENT:: Customer {name} not found.\n")
     return ("FAILURE")
 
 while True:
-    print("BANK:: Waiting for a command from customers\n")
+    print("BANK:: Waiting for a command from customers..\n")
     message, clientAddress = serverSocket.recvfrom(2048)
     rcvd_command = message.decode()
-    print("BANK:: Command recieved from customer: ", rcvd_command)
+    print(f"BANK:: Command recieved from customer: {rcvd_command} \n")
     command_params = rcvd_command.split(" ")
     msg =""
     if(command_params[0] == "open"):

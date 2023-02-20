@@ -4,10 +4,8 @@ import select
 import sys
 #required flags
 exit_flag = False
-
 #cohort details
 cohort_tuple = []
-
 #cmd input
 input_command = ""
 
@@ -15,27 +13,20 @@ input_command = ""
 def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
     print("PEER:: Sending cohort details to peers: ", cohort_tuple)
     (ip_address, port) = clientSocketBank.getsockname()
-    #print("Current host IP Address: ", ip_address)
-    #print("Current host Peer Port: ", port)
 
     for peer in cohort_tuple:
         tupleMsg = str(cohort_tuple)
         peerAddress = peer['ip_address']       
         peerSocket = int(peer['port2'])
 
-        #print("PEER IP Address: ", peerAddress) 
-        #print("PEER Port number: ", peerSocket)
-
         flag = (ip_address != peerAddress) or ((ip_address == peerAddress) and (int(clientPortBank) != int(peer['port1']) and int(clientPortPeer) != peerSocket))
         if(flag):
-            #print("passed flag")
             clientSocketPeer.sendto(tupleMsg.encode(), (peerAddress, peerSocket))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             if(peerResponse.decode() == "SUCCESS"):
                 print("\nCLIENT->PEER:: Cohort details successfully sent to client: ", peer['name'])
             else:
                 continue
-                #print("CLIENT->PEER:: Failed to send the cohort details to client: ", peer['name'])
 
 #Bank worker function
 def bankWorker(input_command, clientPortBank, clientPortPeer):
@@ -43,11 +34,10 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
     global cohort_tuple     
 
     command_bank = input_command
-    print("CLIENT->BANK:: command: ", command_bank)
     #sending command to bank
-    print("CLIENT->BANK:: Sending command to bank..")
+    print("CLIENT->BANK:: Sending command to bank...")
     clientSocketBank.sendto(command_bank.encode(), (serverName, serverPort))
-    print("CLIENT->BANK:: Waiting for response..")
+    print("CLIENT->BANK:: Waiting for response...")
     #waiting for response from bank
     serverResponse, serverAddress = clientSocketBank.recvfrom(2048)
     #decoding response
@@ -95,7 +85,7 @@ if __name__ == "__main__":
 
     #customer port for communicating with peer
     while (True):
-        clientPortPeer = int(input("CLIENT:: Enter a port number Peer communication b/w 8500 - 8999: "))
+        clientPortPeer = int(input("CLIENT:: Enter a port number for Peer communication b/w 8500 - 8999: "))
         if 8500 <= clientPortPeer <=8999 and clientPortPeer != clientPortBank:
             break
         else:
@@ -103,9 +93,10 @@ if __name__ == "__main__":
     
     clientSocketBank = socket(AF_INET, SOCK_DGRAM)
     clientSocketBank.bind(('', clientPortBank))
-    
+    print("CLIENT:: Socket to communicate with Bank created successfully.")
     clientSocketPeer = socket(AF_INET, SOCK_DGRAM)
     clientSocketPeer.bind(('', clientPortPeer))
+    print("CLIENT:: Socket to communicate with Peer created successfully.")
     
     sockets = []
     sockets.append(clientSocketBank)
@@ -135,9 +126,10 @@ if __name__ == "__main__":
                 if (msg.decode() == "delete-cohort"):
                     print("\nCLIENT:: Received 'delete-cohort' command from bank.")
 
-                    print("\nCLIENT:: Current cohort: ", cohort_tuple)
+                    print("\nCLIENT:: Current cohort (before deleting): ", cohort_tuple)
                     cohort_tuple.clear()
-                    print("\nCLIENT:: Cohort tuple after deleting: ", cohort_tuple)
+                    print("\nCLIENT:: Cohort tuple (after deleting): ", cohort_tuple)
+                    print("CLIENT:: Cohort deleted successfully.")
                     clientSocketBank.sendto("SUCCESS".encode(),ret_address)
 
             if sock is clientSocketPeer:
