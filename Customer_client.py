@@ -9,6 +9,10 @@ cohort_tuple = []
 #cmd input
 input_command = ""
 
+#State Variables:
+customer_name = ""
+bank_balance = 0
+
 #once the new cohort is created, the cohort details are sent to other peers in the cohort
 def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
     print("PEER:: Sending cohort details to peers: ", cohort_tuple)
@@ -32,6 +36,8 @@ def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
 def bankWorker(input_command, clientPortBank, clientPortPeer):
     global exit_flag  
     global cohort_tuple     
+    global customer_name
+    global bank_balance
 
     command_bank = input_command
     #sending command to bank
@@ -45,6 +51,10 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
     print("CLIENT->BANK:: Response received: ", rcvd_msg)
 
     msg_cmd = command_bank.split(" ")
+    if(msg_cmd[0] == "open" and rcvd_msg == "SUCCESS"):
+        customer_name = msg_cmd[1]
+        bank_balance = int(msg_cmd[2])
+        print("Customer: " + customer_name + " Balance: " + str(bank_balance))
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
         cohort_tuple = (eval(rcvd_msg))
         sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer)
@@ -60,13 +70,43 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
 def peerWorker(input_command):
     global exit_flag
     if not exit_flag:
-        print("CLIENT->PEER:: Inside Peer Function")
-        command_peer = input_command
-        print("command: ", command_peer)
-        clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
-        peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
-        rcvd_msg = peerResponse.decode()
-        print(rcvd_msg)
+        command = input_command.split(" ")
+        if((command[0] == "deposit") or (command[0]) == "withdrawal"):
+            self_functions(input_command)
+        else:
+            print("CLIENT->PEER:: Inside Peer Function")
+            command_peer = input_command
+            print("command: ", command_peer)
+            clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
+            peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
+            rcvd_msg = peerResponse.decode()
+            print(rcvd_msg)
+
+
+#self functions:
+def self_functions(input_command):
+    global exit_flag
+    global bank_balance
+    if not exit_flag:
+        print("Functions performing at customer end.")
+        cmnd = input_command.split(" ")
+        if(cmnd[0] == "deposit"):
+            print("Performing a deposit of " + cmnd[1] + " USD.")
+            bank_balance = bank_balance + int(cmnd[1])
+            print("Latest bank balance: ", bank_balance)
+        elif(cmnd[0] == "withdrawal"):
+            if(bank_balance < int(cmnd[1])):
+                print("Withdrawal cannot be performed due to insufficient funds.")
+                print("Bank balance: ", bank_balance)
+            else:
+                print("Withdrawal of amount " + cmnd[1] + " USD.")
+                bank_balance = bank_balance - int(cmnd[1])
+                print("Updated bank balance: ", bank_balance)
+        else:
+            print("Wrong command.")
+
+
+
 
 #main function
 if __name__ == "__main__":
