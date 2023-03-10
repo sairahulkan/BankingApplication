@@ -12,7 +12,22 @@ input_command = ""
 #State Variables:
 customer_name = ""
 bank_balance = 0
+class cohortCustomerClass:
+    currentBalance = 0
+    lastLabelrecvd = {}
+    firstLabelSent = {}
+    lastLabelSent = {}
+    oKToTakeChkPoint = True
+    willingToRollBack = True
+    resumeExecution = True
+    rollCohort = []
+    chkptCohort = []
+    def initializeData(self):
+        currentBalance = bank_balance 
+        for cohortPeer in cohort_tuple:
+            self.firstLabelSent[cohortPeer] = 0
 
+cohortCustomer = cohortCustomerClass()
 #once the new cohort is created, the cohort details are sent to other peers in the cohort
 def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
     print("PEER:: Sending cohort details to peers: ", cohort_tuple)
@@ -77,10 +92,24 @@ def peerWorker(input_command):
             print("CLIENT->PEER:: Inside Peer Function")
             command_peer = input_command
             print("command: ", command_peer)
-            clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
-            peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
-            rcvd_msg = peerResponse.decode()
-            print(rcvd_msg)
+            
+            if (command_peer[0] == "transfer"):
+                inCohortFlag = False
+                for tuple in cohort_tuple:
+                    if tuple["name"] == command_peer[2]:
+                        inCohortFlag = True
+                        recieverTuple = tuple
+                        print("Transfer initiated.")
+                        bank_balance = bank_balance - int(command_peer[1])
+                        receiverMessage = 'transfer'+' '+command_peer[1] 
+                        clientSocketPeer.sendto(receiverMessage.encode(),(recieverTuple['ip_address'],recieverTuple['port2']))
+                if(inCohortFlag != True):
+                    print("Receiver is not in your cohort. Enter another")
+            else:
+                clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
+                peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
+                rcvd_msg = peerResponse.decode()
+                print(rcvd_msg)
 
 
 #self functions:
@@ -111,7 +140,6 @@ def self_functions(input_command):
 #main function
 if __name__ == "__main__":
     print("********** CHECKPOINT: Customer Process **********")
-
     serverName = input("\nCLIENT:: Enter the IP address of the Bank Server Process: ")
     serverPort = int(input("CLIENT:: Enter the Port number of the Bank Server Process: "))
 
@@ -173,11 +201,15 @@ if __name__ == "__main__":
                     clientSocketBank.sendto("SUCCESS".encode(),ret_address)
 
             if sock is clientSocketPeer:
-                print("\nCLIENT:: Received Cohort tuple")
                 msg,ret_address = clientSocketPeer.recvfrom(1024)
-                cohort_tuple.append(msg.decode())
-                print("\nCLIENT:: Current Cohort: ", cohort_tuple)
-                clientSocketBank.sendto("SUCCESS".encode(),ret_address)
+                msgData = msg.decode().split(' ')
+                if (msgData[0].decode() == 'transfer'):
+                    bank_balance = bank_balance - int(msgData[1])
+                else:
+                    print("\nCLIENT:: Received Cohort tuple")
+                    cohort_tuple.append(msg.decode())
+                    print("\nCLIENT:: Current Cohort: ", cohort_tuple)
+                    clientSocketBank.sendto("SUCCESS".encode(),ret_address)
         
     print("\nCLIENT:: Exiting bank application")
     clientSocketPeer.close()
