@@ -148,25 +148,24 @@ def peerWorker(input_command):
 
             elif(command[0] == "lost-transfer"):
                 print("\nSimulating a lost transfer...")
-                if (command[0] == "transfer"):
-                    inCohortFlag = False
-                    for tuple in cohort_tuple:
-                        if tuple["name"] == command[2]:
-                            inCohortFlag = True
-                            recieverTuple = tuple
-                            if(int(command[1]) > bank_balance):
-                                print("Transfer cannot be performed due to insufficient funds")
-                                return
-                            else:
-                                print("Transfer initiated.")
-                                bank_balance = bank_balance - int(command[1])
-                                #object update
-                                cohortCustomer.currentBalance = bank_balance
-                                cohortCustomer.firstLabelSent[command[2]] += 1
-                                cohortCustomer.print_data()
+                inCohortFlag = False
+                for tuple in cohort_tuple:
+                    if tuple["name"] == command[2]:
+                        inCohortFlag = True
+                        recieverTuple = tuple
+                        if(int(command[1]) > bank_balance):
+                            print("Transfer cannot be performed due to insufficient funds")
+                            return
+                        else:
+                            print("Transfer initiated.")
+                            bank_balance = bank_balance - int(command[1])
+                            #object update
+                            cohortCustomer.currentBalance = bank_balance
+                            cohortCustomer.firstLabelSent[command[2]] += 1
+                            cohortCustomer.print_data()
                                 
-                    if(inCohortFlag != True):
-                        print("Receiver is not in your cohort. Enter another")
+                if(inCohortFlag != True):
+                    print("Receiver is not in your cohort. Enter another")
 
             else:
                 clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
