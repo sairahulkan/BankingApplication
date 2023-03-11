@@ -13,6 +13,8 @@ input_command = ""
 customer_name = ""
 bank_balance = 0
 class cohortCustomerClass:
+    name = ""
+    ipAddress = ""
     currentBalance = 0
     lastLabelrecvd = {}
     firstLabelSent = {}
@@ -22,15 +24,38 @@ class cohortCustomerClass:
     resumeExecution = True
     rollCohort = []
     chkptCohort = []
+
+    def print_data(self):
+        print("Customer Details:")
+        print("Name: ", self.name)
+        print("Bank balance: ", self.currentBalance)
+        print("lastLabelrecvd: ", self.lastLabelrecvd)
+        print("firstLabelSent: ", self.firstLabelSent)
+        print("lastLabelSent: ", self.lastLabelSent)
+        print("oKToTakeChkPoint: ", self.oKToTakeChkPoint)
+        print("willingToRollBack: ", self.willingToRollBack)
+        print("resumeExecution: ", self.resumeExecution)
+        print("rollCohort: ", self.rollCohort)
+        print("chkptCohort: ", self.chkptCohort)
+
     def initializeData(self):
-        currentBalance = bank_balance 
-        for cohortPeer in cohort_tuple:
-            self.firstLabelSent[cohortPeer] = 0
+        global cohort_tuple
+        if cohort_tuple:
+            for cohortPeer in cohort_tuple:
+                self.firstLabelSent.update({cohortPeer['name'] : 0})
+                self.lastLabelrecvd.update({cohortPeer['name'] : 0})
+                self.lastLabelSent.update({cohortPeer['name'] : 999})
 
 cohortCustomer = cohortCustomerClass()
+
 #once the new cohort is created, the cohort details are sent to other peers in the cohort
 def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
     print("PEER:: Sending cohort details to peers: ", cohort_tuple)
+
+    #update object
+    cohortCustomer.initializeData()
+    cohortCustomer.print_data()
+
     (ip_address, port) = clientSocketBank.getsockname()
 
     for peer in cohort_tuple:
@@ -67,9 +92,14 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
 
     msg_cmd = command_bank.split(" ")
     if(msg_cmd[0] == "open" and rcvd_msg == "SUCCESS"):
+        #object update
         customer_name = msg_cmd[1]
         bank_balance = int(msg_cmd[2])
+        cohortCustomer.name = customer_name
+        cohortCustomer.currentBalance = bank_balance
+        cohortCustomer.ipAddress = msg_cmd[3]
         print("Customer: " + customer_name + " Balance: " + str(bank_balance))
+    
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
         cohort_tuple = (eval(rcvd_msg))
         sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer)
@@ -84,6 +114,7 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
 #peer to peer worker function
 def peerWorker(input_command):
     global exit_flag
+    global bank_balance
     if not exit_flag:
         command = input_command.split(" ")
         if((command[0] == "deposit") or (command[0]) == "withdrawal"):
@@ -93,18 +124,50 @@ def peerWorker(input_command):
             command_peer = input_command
             print("command: ", command_peer)
             
-            if (command_peer[0] == "transfer"):
+            if (command[0] == "transfer"):
                 inCohortFlag = False
                 for tuple in cohort_tuple:
-                    if tuple["name"] == command_peer[2]:
+                    if tuple["name"] == command[2]:
                         inCohortFlag = True
                         recieverTuple = tuple
-                        print("Transfer initiated.")
-                        bank_balance = bank_balance - int(command_peer[1])
-                        receiverMessage = 'transfer'+' '+command_peer[1] 
-                        clientSocketPeer.sendto(receiverMessage.encode(),(recieverTuple['ip_address'],recieverTuple['port2']))
+                        if(int(command[1]) > bank_balance):
+                            print("Transfer cannot be performed due to insufficient funds")
+                            return
+                        else:
+                            print("Transfer initiated.")
+                            bank_balance = bank_balance - int(command[1])
+                            #object update
+                            cohortCustomer.currentBalance = bank_balance
+                            cohortCustomer.firstLabelSent[command[2]] += 1
+                            receiverMessage = 'transfer' + ' ' + command[1] + ' ' + cohortCustomer.name + ' ' + str(cohortCustomer.firstLabelSent[command[2]])
+                            print("Command to transfer: ", receiverMessage)
+                            cohortCustomer.print_data()
+                            clientSocketPeer.sendto(receiverMessage.encode(),(recieverTuple['ip_address'], int(recieverTuple['port2'])))
                 if(inCohortFlag != True):
                     print("Receiver is not in your cohort. Enter another")
+
+            elif(command[0] == "lost-transfer"):
+                print("\nSimulating a lost transfer...")
+                if (command[0] == "transfer"):
+                    inCohortFlag = False
+                    for tuple in cohort_tuple:
+                        if tuple["name"] == command[2]:
+                            inCohortFlag = True
+                            recieverTuple = tuple
+                            if(int(command[1]) > bank_balance):
+                                print("Transfer cannot be performed due to insufficient funds")
+                                return
+                            else:
+                                print("Transfer initiated.")
+                                bank_balance = bank_balance - int(command[1])
+                                #object update
+                                cohortCustomer.currentBalance = bank_balance
+                                cohortCustomer.firstLabelSent[command[2]] += 1
+                                cohortCustomer.print_data()
+                                
+                    if(inCohortFlag != True):
+                        print("Receiver is not in your cohort. Enter another")
+
             else:
                 clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
                 peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
@@ -121,7 +184,9 @@ def self_functions(input_command):
         cmnd = input_command.split(" ")
         if(cmnd[0] == "deposit"):
             print("Performing a deposit of " + cmnd[1] + " USD.")
+            #object update
             bank_balance = bank_balance + int(cmnd[1])
+            cohortCustomer.currentBalance = bank_balance
             print("Latest bank balance: ", bank_balance)
         elif(cmnd[0] == "withdrawal"):
             if(bank_balance < int(cmnd[1])):
@@ -129,7 +194,9 @@ def self_functions(input_command):
                 print("Bank balance: ", bank_balance)
             else:
                 print("Withdrawal of amount " + cmnd[1] + " USD.")
+                #object update
                 bank_balance = bank_balance - int(cmnd[1])
+                cohortCustomer.currentBalance = bank_balance
                 print("Updated bank balance: ", bank_balance)
         else:
             print("Wrong command.")
@@ -203,12 +270,20 @@ if __name__ == "__main__":
             if sock is clientSocketPeer:
                 msg,ret_address = clientSocketPeer.recvfrom(1024)
                 msgData = msg.decode().split(' ')
-                if (msgData[0].decode() == 'transfer'):
-                    bank_balance = bank_balance - int(msgData[1])
+                if (msgData[0] == 'transfer'):
+                    bank_balance = bank_balance + int(msgData[1])
+                    cohortCustomer.currentBalance = bank_balance
+                    if(msgData[2] not in cohortCustomer.chkptCohort):
+                        cohortCustomer.chkptCohort.append(msgData[2])
+                    cohortCustomer.lastLabelrecvd[msgData[2]] += 1
+                    cohortCustomer.print_data()
+                    print("Updated bank balance: ", bank_balance)
                 else:
                     print("\nCLIENT:: Received Cohort tuple")
-                    cohort_tuple.append(msg.decode())
+                    cohort_tuple = eval(msg.decode())
                     print("\nCLIENT:: Current Cohort: ", cohort_tuple)
+                    cohortCustomer.initializeData()
+                    cohortCustomer.print_data()
                     clientSocketBank.sendto("SUCCESS".encode(),ret_address)
         
     print("\nCLIENT:: Exiting bank application")
