@@ -340,48 +340,55 @@ def undo_tentative_chkpt():
 
 #roll back start
 def rollback():
+    print("PEER:: Inside roll backfunction.")
     global exit_flag
     if not exit_flag:
         print("\nPEER:: Initiating Rollback algorithm...")
-        cmd = (PRP_ROLL_MSG+' '+cohortCustomer.name+''+str(cohortCustomer.lastLabelrecvd))
         rollback_flag = True
-        for peer in cohortCustomer.rollCohort:            
+        for peer in cohortCustomer.rollCohort:
+            cmd = (PRP_ROLL_MSG+' '+cohortCustomer.name+' '+str(cohortCustomer.lastLabelSent[peer['name']])) 
+            print(f"\nPEER:: Sending '{cmd}' to '{peer}'.")         
             clientSocketPeer.sendto(cmd,(peer['ipaddress'],int(peer['port2'])))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             rcvd_msg = peerResponse.decode().split(' ')
-            if (rcvd_msg[1] == 'no'):
-                print("Received no for Rollback from - "+rcvd_msg[0])
+            if (rcvd_msg[1] == 'No'):
+                print("Received no for Rollback from -> "+rcvd_msg[0])
                 rollback_flag = False           
                 break
         if (rollback_flag):
             for peer in cohortCustomer.rollCohort:
                 clientSocketPeer.sendto(PEER_ROLL_BACK,(peer['ipaddress'],int(peer['port2'])))
         else:
-            clientSocketPeer.sendto(DO_NOT_ROLL_BACK,(peer['ipaddress'],int(peer['port2'])))     
+            for peer in cohortCustomer.rollCohort:
+                clientSocketPeer.sendto(DO_NOT_ROLL_BACK,(peer['ipaddress'],int(peer['port2'])))     
     
-def prepare_to_rollback(senderPeer, lastReceived):
-    if ((cohortCustomer.willingToRollBack == "Yes")and (int(lastReceived)) >= cohortCustomer.lastLabelSent > 0) and cohortCustomer.resumeExecution):
-        cohortCustomer.resumeExecution = False
-        cmd = (PRP_ROLL_MSG+' '+cohortCustomer.name+' '+str(cohortCustomer.lastLabelrecvd))
-        for peer in cohortCustomer.rollCohort:            
+def prepare_to_rollback(senderPeer, lastSent):
+    print("\nPEER:: Preparing to rollback...")
+    if ((cohortCustomer.willingToRollBack == "Yes") and (cohortCustomer.lastLabelrecvd[senderPeer] > int(lastSent)) and (cohortCustomer.resumeExecution=='Yes')):
+        cohortCustomer.resumeExecution = "Yes"
+
+        for peer in cohortCustomer.rollCohort:           
+            cmd = (PRP_ROLL_MSG+' '+cohortCustomer.name+' '+str(cohortCustomer.lastLabelrecvd[peer])) 
             clientSocketPeer.sendto(cmd.encode(),(peer['ipaddress'],int(peer['port2'])))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             rcvd_msg = peerResponse.decode().split(' ')
-            if (rcvd_msg[1] == 'no'):
+            if (rcvd_msg[1] == 'No'):
                 rollback_flag = False           
                 break
+
         if (rollback_flag):
-            cohortCustomer.willingToRollBack = True
-            cmd = cohortCustomer.name + ' ' + 'yes'
+            cohortCustomer.willingToRollBack = "Yes"
+            
         else:
-            cohortCustomer.willingToRollBack = False
-            cmd = cohortCustomer.name + ' ' + 'no'
+            cohortCustomer.willingToRollBack = "No"
+        
+        cmnd = cohortCustomer.name + ' ' + cohortCustomer.willingToRollBack
         receiverTuple ={}
         for tuple in cohort_tuple:
             if(tuple['name'] == senderPeer):
                 receiverTuple = tuple
                 break       
-        clientSocketPeer.sendto(cmd.encode(),(receiverTuple['ip_address'],receiverTuple['port2']))
+        clientSocketPeer.sendto(cmnd.encode(),(receiverTuple['ip_address'],receiverTuple['port2']))
         
 def peer_roll_back():
     if(cohortCustomer.resumeExecution == False):
@@ -399,7 +406,7 @@ def peer_roll_back():
         clientSocketPeer.sendto(PEER_ROLL_BACK,(peer['ipaddress'],int(peer['port2'])))
 
 def do_not_roll_back():
-    cohortCustomer.resumeExecution = True
+    cohortCustomer.resumeExecution = "Yes"
     for peer in cohortCustomer.rollCohort:
         clientSocketPeer.sendto(DO_NOT_ROLL_BACK,(peer['ipaddress'],int(peer['port2'])))
 
