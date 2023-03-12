@@ -9,9 +9,12 @@ cohort_tuple = []
 #cmd input
 input_command = ""
 
+#commands:
+TAKE_TNT_CKPT = "take_tentative_check_point"
+MK_TNT_CKPT_PRMNT = "make_tentative_check_point_permananent"
+UNDO_TNT_CKPT = "undo_tentative_check_point"
+
 #State Variables:
-customer_name = ""
-bank_balance = 0
 class cohortCustomerClass:
     name = ""
     ipAddress = ""
@@ -19,14 +22,14 @@ class cohortCustomerClass:
     lastLabelrecvd = {}
     firstLabelSent = {}
     lastLabelSent = {}
-    oKToTakeChkPoint = True
-    willingToRollBack = True
-    resumeExecution = True
+    oKToTakeChkPoint = "Yes"
+    willingToRollBack = "Yes"
+    resumeExecution = "Yes"
     rollCohort = []
     chkptCohort = []
 
     def print_data(self):
-        print("Customer Details:")
+        print("\n========Customer Details:==========")
         print("Name: ", self.name)
         print("Bank balance: ", self.currentBalance)
         print("lastLabelrecvd: ", self.lastLabelrecvd)
@@ -46,17 +49,17 @@ class cohortCustomerClass:
                 self.lastLabelrecvd.update({cohortPeer['name'] : 0})
                 self.lastLabelSent.update({cohortPeer['name'] : 999})
 
+#Initialize objects 
 cohortCustomer = cohortCustomerClass()
+tentativeCheckPoint = cohortCustomerClass()
+permanentCheckPoint = cohortCustomerClass()
 
 #once the new cohort is created, the cohort details are sent to other peers in the cohort
 def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
-    print("PEER:: Sending cohort details to peers: ", cohort_tuple)
-
+    print("PEER:: Sending cohort details to peers")
     #update object
     cohortCustomer.initializeData()
-    cohortCustomer.print_data()
-
-    (ip_address, port) = clientSocketBank.getsockname()
+    ip_address = cohortCustomer.ipAddress
 
     for peer in cohort_tuple:
         tupleMsg = str(cohort_tuple)
@@ -68,16 +71,15 @@ def sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer):
             clientSocketPeer.sendto(tupleMsg.encode(), (peerAddress, peerSocket))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             if(peerResponse.decode() == "SUCCESS"):
-                print("\nCLIENT->PEER:: Cohort details successfully sent to client: ", peer['name'])
+                print("\nPEER:: Cohort details successfully sent to client: ", peer['name'])
             else:
+                print("Send-cohort else part")
                 continue
 
 #Bank worker function
 def bankWorker(input_command, clientPortBank, clientPortPeer):
     global exit_flag  
     global cohort_tuple     
-    global customer_name
-    global bank_balance
 
     command_bank = input_command
     #sending command to bank
@@ -93,12 +95,10 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
     msg_cmd = command_bank.split(" ")
     if(msg_cmd[0] == "open" and rcvd_msg == "SUCCESS"):
         #object update
-        customer_name = msg_cmd[1]
-        bank_balance = int(msg_cmd[2])
-        cohortCustomer.name = customer_name
-        cohortCustomer.currentBalance = bank_balance
+        cohortCustomer.name = msg_cmd[1]
+        cohortCustomer.currentBalance = int(msg_cmd[2])
         cohortCustomer.ipAddress = msg_cmd[3]
-        print("Customer: " + customer_name + " Balance: " + str(bank_balance))
+        print("Customer: " + cohortCustomer.name + "\nBalance: " + str(cohortCustomer.currentBalance))
     
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
         cohort_tuple = (eval(rcvd_msg))
@@ -114,15 +114,14 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
 #peer to peer worker function
 def peerWorker(input_command):
     global exit_flag
-    global bank_balance
     if not exit_flag:
         command = input_command.split(" ")
         if((command[0] == "deposit") or (command[0]) == "withdrawal"):
             self_functions(input_command)
         else:
-            print("CLIENT->PEER:: Inside Peer Function")
+            print("\nCLIENT->PEER:: Inside Peer Function.\n")
             command_peer = input_command
-            print("command: ", command_peer)
+            print("PEER:: command: ", command_peer)
             
             if (command[0] == "transfer"):
                 inCohortFlag = False
@@ -130,42 +129,44 @@ def peerWorker(input_command):
                     if tuple["name"] == command[2]:
                         inCohortFlag = True
                         recieverTuple = tuple
-                        if(int(command[1]) > bank_balance):
-                            print("Transfer cannot be performed due to insufficient funds")
+                        if(int(command[1]) > cohortCustomer.currentBalance):
+                            print("\nPEER:: Transfer cannot be performed due to insufficient funds")
                             return
                         else:
-                            print("Transfer initiated.")
-                            bank_balance = bank_balance - int(command[1])
+                            print("\nPEER:: Transfer initiated.")
                             #object update
-                            cohortCustomer.currentBalance = bank_balance
+                            cohortCustomer.currentBalance = cohortCustomer.currentBalance - int(command[1])
                             cohortCustomer.firstLabelSent[command[2]] += 1
                             receiverMessage = 'transfer' + ' ' + command[1] + ' ' + cohortCustomer.name + ' ' + str(cohortCustomer.firstLabelSent[command[2]])
-                            print("Command to transfer: ", receiverMessage)
+                            print("PEER:: Command to transfer: ", receiverMessage)
                             cohortCustomer.print_data()
                             clientSocketPeer.sendto(receiverMessage.encode(),(recieverTuple['ip_address'], int(recieverTuple['port2'])))
                 if(inCohortFlag != True):
-                    print("Receiver is not in your cohort. Enter another")
+                    print("PEER:: Receiver is not in your cohort. Enter another")
 
             elif(command[0] == "lost-transfer"):
-                print("\nSimulating a lost transfer...")
+                print("\nPEER:: Simulating a lost transfer...")
                 inCohortFlag = False
                 for tuple in cohort_tuple:
                     if tuple["name"] == command[2]:
                         inCohortFlag = True
                         recieverTuple = tuple
-                        if(int(command[1]) > bank_balance):
-                            print("Transfer cannot be performed due to insufficient funds")
+                        if(int(command[1]) > cohortCustomer.currentBalance):
+                            print("PEER:: Transfer cannot be performed due to insufficient funds")
                             return
                         else:
-                            print("Transfer initiated.")
-                            bank_balance = bank_balance - int(command[1])
+                            print("PEER:: Transfer initiated.")
                             #object update
-                            cohortCustomer.currentBalance = bank_balance
+                            cohortCustomer.currentBalance = cohortCustomer.currentBalance - int(command[1])
                             cohortCustomer.firstLabelSent[command[2]] += 1
                             cohortCustomer.print_data()
+                            print("\nPEER:: Transfer Lost")
                                 
                 if(inCohortFlag != True):
-                    print("Receiver is not in your cohort. Enter another")
+                    print("PEER:: Receiver is not in your cohort. Enter another")
+            
+            elif(command[0] == "checkpoint"):
+                checkpoint()
 
             else:
                 clientSocketPeer.sendto(command_peer.encode(), (serverName, serverPort))
@@ -177,28 +178,158 @@ def peerWorker(input_command):
 #self functions:
 def self_functions(input_command):
     global exit_flag
-    global bank_balance
     if not exit_flag:
-        print("Functions performing at customer end.")
+        print("PEER:: Functions performing at customer end.")
         cmnd = input_command.split(" ")
         if(cmnd[0] == "deposit"):
-            print("Performing a deposit of " + cmnd[1] + " USD.")
+            print("PEER:: Performing a deposit of " + cmnd[1] + " USD.")
             #object update
-            bank_balance = bank_balance + int(cmnd[1])
-            cohortCustomer.currentBalance = bank_balance
-            print("Latest bank balance: ", bank_balance)
+            cohortCustomer.currentBalance = cohortCustomer.currentBalance + int(cmnd[1])
+            print("PEER:: Latest bank balance: ", cohortCustomer.currentBalance)
         elif(cmnd[0] == "withdrawal"):
-            if(bank_balance < int(cmnd[1])):
-                print("Withdrawal cannot be performed due to insufficient funds.")
-                print("Bank balance: ", bank_balance)
+            if(cohortCustomer.currentBalance < int(cmnd[1])):
+                print("PEER:: Withdrawal cannot be performed due to insufficient funds.")
+                print("Bank balance: ", cohortCustomer.currentBalance)
             else:
-                print("Withdrawal of amount " + cmnd[1] + " USD.")
+                print("PEER:: Withdrawal of amount " + cmnd[1] + " USD.\n")
                 #object update
-                bank_balance = bank_balance - int(cmnd[1])
-                cohortCustomer.currentBalance = bank_balance
-                print("Updated bank balance: ", bank_balance)
+                cohortCustomer.currentBalance = cohortCustomer.currentBalance - int(cmnd[1])
+                print("PEER:: Updated bank balance: ", cohortCustomer.currentBalance)
         else:
-            print("Wrong command.")
+            print("PEER:: Wrong command.")
+
+
+def checkpoint():
+    global exit_flag
+    
+    if not exit_flag:
+        print("\nPEER:: Initiating checkpoint algortihm...")
+        local_tentative_chkpt()
+        tnt_yes = True
+        print(f"PEER:: Customers in checkpoint cohort: {cohortCustomer.chkptCohort} \n")
+        for cust in cohortCustomer.chkptCohort:
+            cmd = TAKE_TNT_CKPT + ' ' + cohortCustomer.name + ' ' + str(cohortCustomer.lastLabelrecvd[cust])
+            receiverTuple = {}
+            for tuple in cohort_tuple:
+                if(tuple['name'] == cust):
+                    receiverTuple = tuple
+                    break
+            print(f"PEER:: Sending '{cmd}' to '{cust}'\n")
+            clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+            peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
+            rcvd_msg = peerResponse.decode().split(' ')
+            print(f"PEER:: Customer '{cust}' is ready to take checkpoint -> '{rcvd_msg[1]}'")
+            if(rcvd_msg[0] == cust) and (rcvd_msg[1] == 'No'):
+                tnt_yes = False
+                break
+        
+        if(tnt_yes):
+            print("PEER:: Making a permanent checkpoint.")
+            local_permanent_chkpt()
+            for cust in cohortCustomer.chkptCohort:
+                cmd = MK_TNT_CKPT_PRMNT
+                receiverTuple = {}
+                for tuple in cohort_tuple:
+                    if(tuple['name'] == cust):
+                        receiverTuple = tuple
+                        break
+                print(f"PEER:: Sending a '{cmd}' to '{cust}'")
+                clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+
+        else:
+             for cust in cohortCustomer.chkptCohort:
+                cmd = UNDO_TNT_CKPT
+                receiverTuple = {}
+                for tuple in cohort_tuple:
+                    if(tuple['name'] == cust):
+                        receiverTuple = tuple
+                        break
+                print(f"PEER:: Sending a '{cmd}' to '{cust}'")
+                clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+
+
+def take_tentative_chkpt(senderPeer, lastReceieved):
+    print("PEER:: Inside taking tentative check point")
+    print("PEER:: Take tentative Checkpoint received from customer : ", senderPeer)
+    if ((cohortCustomer.oKToTakeChkPoint == "Yes") and (lastReceieved >= cohortCustomer.firstLabelSent[senderPeer] > 0)):
+        print("PEER:: Taking a tentative check point.")
+        local_tentative_chkpt()
+        tentativeCheckPoint.print_data()
+
+        tnt_yes = True
+        for cust in cohortCustomer.chkptCohort:
+            cmd = TAKE_TNT_CKPT + ' ' + cohortCustomer.name + ' ' + str(cohortCustomer.lastLabelrecvd[cust])
+            receiverTuple = {}
+            for tuple in cohort_tuple:
+                if(tuple['name'] == cust):
+                    receiverTuple = tuple
+                    break
+
+            clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+            peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
+            rcvd_msg = peerResponse.decode().split(' ')
+            if(rcvd_msg[0] == cust) and (rcvd_msg[1] == 'No'):
+                tnt_yes = False
+                break
+        
+        if(tnt_yes):
+            cohortCustomer.oKToTakeChkPoint = "Yes"
+        else:
+            cohortCustomer.oKToTakeChkPoint = "No"
+    
+    receiverTuple ={}
+    for tuple in cohort_tuple:
+        if(tuple['name'] == senderPeer):
+            receiverTuple = tuple
+            break
+    cmd = cohortCustomer.name + ' ' + cohortCustomer.oKToTakeChkPoint
+    print(f"PEER:: Sending reply command '{cmd}'")
+    clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+    return
+
+def local_tentative_chkpt():
+    print("Saving to tentative checkpoint.")
+    tentativeCheckPoint.name = cohortCustomer.name
+    tentativeCheckPoint.currentBalance = cohortCustomer.currentBalance
+    tentativeCheckPoint.ipAddress = cohortCustomer.ipAddress
+    tentativeCheckPoint.firstLabelSent = cohortCustomer.firstLabelSent
+    tentativeCheckPoint.lastLabelrecvd = cohortCustomer.lastLabelrecvd
+    tentativeCheckPoint.lastLabelSent = cohortCustomer.lastLabelSent
+    tentativeCheckPoint.willingToRollBack = cohortCustomer.willingToRollBack
+    tentativeCheckPoint.resumeExecution = cohortCustomer.resumeExecution
+    tentativeCheckPoint.oKToTakeChkPoint = cohortCustomer.oKToTakeChkPoint
+
+def local_permanent_chkpt():
+    print("\nPEER:: Making a permanent Checkpoint.")
+    permanentCheckPoint.name = tentativeCheckPoint.name
+    permanentCheckPoint.currentBalance = tentativeCheckPoint.currentBalance
+    permanentCheckPoint.ipAddress = tentativeCheckPoint.ipAddress
+    permanentCheckPoint.firstLabelSent = tentativeCheckPoint.firstLabelSent
+    permanentCheckPoint.lastLabelrecvd = tentativeCheckPoint.lastLabelrecvd
+    permanentCheckPoint.lastLabelSent = tentativeCheckPoint.lastLabelSent
+    permanentCheckPoint.willingToRollBack = tentativeCheckPoint.willingToRollBack
+    permanentCheckPoint.resumeExecution = tentativeCheckPoint.resumeExecution
+    permanentCheckPoint.oKToTakeChkPoint = tentativeCheckPoint.oKToTakeChkPoint
+    permanentCheckPoint.print_data()
+    print("\n")
+
+def make_permanent_chkpt():
+    print("PEER:: Inside permanent checkpoint")
+    local_permanent_chkpt()
+    for cust in cohortCustomer.chkptCohort:
+        receiverTuple = {}
+        cmd = MK_TNT_CKPT_PRMNT
+        for tuple in cohort_tuple:
+            if(tuple['name'] == cust):
+                receiverTuple = tuple
+                break
+        clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+
+
+
+def undo_tentative_chkpt():
+    print("Inside undo tentative checkpoint")
+
 
 
 
@@ -262,6 +393,9 @@ if __name__ == "__main__":
 
                     print("\nCLIENT:: Current cohort (before deleting): ", cohort_tuple)
                     cohort_tuple.clear()
+                    cohortCustomer.chkptCohort.clear()
+                    cohortCustomer.rollCohort.clear()
+
                     print("\nCLIENT:: Cohort tuple (after deleting): ", cohort_tuple)
                     print("CLIENT:: Cohort deleted successfully.")
                     clientSocketBank.sendto("SUCCESS".encode(),ret_address)
@@ -270,19 +404,30 @@ if __name__ == "__main__":
                 msg,ret_address = clientSocketPeer.recvfrom(1024)
                 msgData = msg.decode().split(' ')
                 if (msgData[0] == 'transfer'):
-                    bank_balance = bank_balance + int(msgData[1])
-                    cohortCustomer.currentBalance = bank_balance
+                    print(f"\nPEER:: Received a transfer of amount {msgData[1]} USD from customer {msgData[2]}")
+                    cohortCustomer.currentBalance = cohortCustomer.currentBalance + int(msgData[1])
                     if(msgData[2] not in cohortCustomer.chkptCohort):
                         cohortCustomer.chkptCohort.append(msgData[2])
+                    if(int(msgData[3]) - cohortCustomer.lastLabelrecvd[msgData[2]] > 1):
+                        cohortCustomer.oKToTakeChkPoint = "No"
                     cohortCustomer.lastLabelrecvd[msgData[2]] += 1
+                    print("PEER:: Updated customer Details")
                     cohortCustomer.print_data()
-                    print("Updated bank balance: ", bank_balance)
+                
+                elif(msgData[0] == TAKE_TNT_CKPT):
+                    take_tentative_chkpt(msgData[1], int(msgData[2]))
+                
+                elif(msgData[0] == MK_TNT_CKPT_PRMNT):
+                    make_permanent_chkpt()
+                
+                elif(msgData[0] == UNDO_TNT_CKPT):
+                    undo_tentative_chkpt()
+
                 else:
                     print("\nCLIENT:: Received Cohort tuple")
                     cohort_tuple = eval(msg.decode())
-                    print("\nCLIENT:: Current Cohort: ", cohort_tuple)
+                    print("CLIENT:: Current Cohort: \n", cohort_tuple)
                     cohortCustomer.initializeData()
-                    cohortCustomer.print_data()
                     clientSocketBank.sendto("SUCCESS".encode(),ret_address)
         
     print("\nCLIENT:: Exiting bank application")
