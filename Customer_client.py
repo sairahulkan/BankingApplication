@@ -205,7 +205,8 @@ def self_functions(input_command):
 
 def checkpoint():
     global exit_flag
-    
+    global cohort_tuple
+
     if not exit_flag:
         print("\nPEER:: Initiating checkpoint algortihm...")
         local_tentative_chkpt()
@@ -230,17 +231,24 @@ def checkpoint():
         if(tnt_yes):
             print("PEER:: Making a permanent checkpoint.")
             chkptchrt = cohortCustomer.chkptCohort
+            print("DEBUG:: checkpoint cohort: ", chkptchrt)
             local_permanent_chkpt()
-            cohortCustomer.chkptCohort.clear()
             for cust in chkptchrt:
+                print("DEBUG:: Inside for loop..")
                 cmd = MK_TNT_CKPT_PRMNT
                 receiverTuple = {}
                 for tuple in cohort_tuple:
                     if(tuple['name'] == cust):
                         receiverTuple = tuple
+                        print(f"DEBUG:: found customer {cust}")
                         break
                 print(f"PEER:: Sending a '{cmd}' to '{cust}'")
                 clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
+            print("DEBUG:: Permanent checkpoint completed.")
+            print("DEBUG:: Latest Customer details")
+            cohortCustomer.chkptCohort.clear()
+            cohortCustomer.print_data()
+            tentativeCheckPoint.chkptCohort.clear()
 
         else:
              for cust in cohortCustomer.chkptCohort:
@@ -291,7 +299,7 @@ def take_tentative_chkpt(senderPeer, lastReceieved):
     cmd = cohortCustomer.name + ' ' + cohortCustomer.oKToTakeChkPoint
     print(f"PEER:: Sending reply command '{cmd}'")
     clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
-    return
+
 
 def local_tentative_chkpt():
     print("Saving to tentative checkpoint.")
@@ -306,12 +314,13 @@ def local_tentative_chkpt():
     tentativeCheckPoint.oKToTakeChkPoint = cohortCustomer.oKToTakeChkPoint
     tentativeCheckPoint.rollCohort = cohortCustomer.rollCohort
     tentativeCheckPoint.chkptCohort = cohortCustomer.chkptCohort
+    return
 
 def local_permanent_chkpt():
     print("\nPEER:: Making a permanent Checkpoint.")
     cohortCustomer.lastLabelSent = cohortCustomer.firstLabelSent # updating last label sent
     tentativeCheckPoint.lastLabelSent = cohortCustomer.lastLabelSent
-    permanentCheckPoint.lastLabelSent = tentativeCheckPoint.lastLabelSent
+
     permanentCheckPoint.name = tentativeCheckPoint.name
     permanentCheckPoint.currentBalance = tentativeCheckPoint.currentBalance
     permanentCheckPoint.ipAddress = tentativeCheckPoint.ipAddress
@@ -322,9 +331,10 @@ def local_permanent_chkpt():
     permanentCheckPoint.resumeExecution = tentativeCheckPoint.resumeExecution
     permanentCheckPoint.oKToTakeChkPoint = tentativeCheckPoint.oKToTakeChkPoint
     permanentCheckPoint.rollCohort = tentativeCheckPoint.rollCohort
-    tentativeCheckPoint.chkptCohort.clear()
+    #tentativeCheckPoint.chkptCohort.clear()
     permanentCheckPoint.print_data()
     print("\n")
+    return
 
 def make_permanent_chkpt():
     print("PEER:: Inside permanent checkpoint")
@@ -352,34 +362,43 @@ def rollback():
         print("\nPEER:: Initiating Rollback algorithm...")
         rollback_flag = True
         cohortCustomer.rollCohort = cohort_tuple
+        print("DEBUG:: cohort tuple : ", cohortCustomer.rollCohort)
         for peer in cohortCustomer.rollCohort:
             if(peer['name'] == cohortCustomer.name):
-                break
+                continue
             cmd = (PRP_ROLL_MSG+' '+cohortCustomer.name+' '+str(cohortCustomer.lastLabelSent[peer['name']])) 
             print(f"\nPEER:: Sending '{cmd}' to '{peer['name']}'.")         
             clientSocketPeer.sendto(cmd.encode(),(peer['ip_address'],int(peer['port2'])))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             rcvd_msg = peerResponse.decode().split(' ')
             if (rcvd_msg[1] == 'No'):
-                print("Received no for Rollback from -> "+rcvd_msg[0])
+                print("PEER:: Received no for Rollback from -> ", rcvd_msg[0])
                 rollback_flag = False           
                 break
         if (rollback_flag):
+            loc_roll_back()
             for peer in cohortCustomer.rollCohort:
-                clientSocketPeer.sendto(PEER_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
+                if(peer['name'] == cohortCustomer.name):
+                    continue
+                else:
+                    clientSocketPeer.sendto(PEER_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
         else:
             for peer in cohortCustomer.rollCohort:
-                clientSocketPeer.sendto(DO_NOT_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))     
+                if(peer['name'] == cohortCustomer.name):
+                    continue
+                else:
+                    clientSocketPeer.sendto(DO_NOT_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))     
     
 def prepare_to_rollback(senderPeer, lastSent):
     print("\nPEER:: Preparing to rollback...")
     if ((cohortCustomer.willingToRollBack == "Yes") and (cohortCustomer.lastLabelrecvd[senderPeer] > int(lastSent)) and (cohortCustomer.resumeExecution=='Yes')):
-        cohortCustomer.resumeExecution = "Yes"
-
+        cohortCustomer.resumeExecution = "No"
+        print("DEBUG:: here I am")
         for peer in cohortCustomer.rollCohort:
             if(peer['name'] == cohortCustomer.name):
-                break   
+                continue   
             cmd = (PRP_ROLL_MSG+' '+cohortCustomer.name+' '+str(cohortCustomer.lastLabelrecvd[peer])) 
+            print(f"PEER:: Sending {cmd} to customer {peer['name']}.")
             clientSocketPeer.sendto(cmd.encode(),(peer['ip_address'],int(peer['port2'])))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             rcvd_msg = peerResponse.decode().split(' ')
@@ -394,15 +413,29 @@ def prepare_to_rollback(senderPeer, lastSent):
             cohortCustomer.willingToRollBack = "No"
         
     cmnd = cohortCustomer.name + ' ' + cohortCustomer.willingToRollBack
+    print(f"PEER:: Sending {cmnd} to {senderPeer}.")
     receiverTuple ={}
     for tuple in cohort_tuple:
         if(tuple['name'] == senderPeer):
             receiverTuple = tuple
             break       
-    clientSocketPeer.sendto(cmnd.encode(),(receiverTuple['ip_address'],receiverTuple['port2']))
-        
+    clientSocketPeer.sendto(cmnd.encode(),(receiverTuple['ip_address'], int(receiverTuple['port2'])))
+
+def loc_roll_back():
+    cohortCustomer.name = permanentCheckPoint.name
+    cohortCustomer.currentBalance = permanentCheckPoint.currentBalance
+    cohortCustomer.ipAddress = permanentCheckPoint.ipAddress
+    cohortCustomer.firstLabelSent = permanentCheckPoint.firstLabelSent
+    cohortCustomer.lastLabelrecvd = permanentCheckPoint.lastLabelrecvd
+    cohortCustomer.lastLabelSent = permanentCheckPoint.lastLabelSent
+    cohortCustomer.willingToRollBack = permanentCheckPoint.willingToRollBack
+    cohortCustomer.resumeExecution = permanentCheckPoint.resumeExecution
+    cohortCustomer.oKToTakeChkPoint = permanentCheckPoint.oKToTakeChkPoint
+    print("\nPEER:: Data after rollback.")
+    cohortCustomer.print_data()
+
 def peer_roll_back():
-    if(cohortCustomer.resumeExecution == "No"):
+    '''if(cohortCustomer.resumeExecution == "No"):
         cohortCustomer.name = permanentCheckPoint.name
         cohortCustomer.currentBalance = permanentCheckPoint.currentBalance
         cohortCustomer.ipAddress = permanentCheckPoint.ipAddress
@@ -413,17 +446,19 @@ def peer_roll_back():
         cohortCustomer.resumeExecution = permanentCheckPoint.resumeExecution
         cohortCustomer.oKToTakeChkPoint = permanentCheckPoint.oKToTakeChkPoint
         print("\nPEER:: Data after rollback.")
-        cohortCustomer.print_data()
+        cohortCustomer.print_data()'''
+    loc_roll_back()
     for peer in cohortCustomer.rollCohort:
         if(peer['name'] == cohortCustomer.name):
-            break 
+            continue 
         clientSocketPeer.sendto(PEER_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
 
 def do_not_roll_back():
     cohortCustomer.resumeExecution = "Yes"
+    print("PEER:: Not rolling back.")
     for peer in cohortCustomer.rollCohort:
         if(peer['name'] == cohortCustomer.name):
-            break 
+            continue 
         clientSocketPeer.sendto(DO_NOT_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
 
 #rollback end
