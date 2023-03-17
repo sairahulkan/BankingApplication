@@ -16,6 +16,7 @@ UNDO_TNT_CKPT = "undo_tentative_check_point"
 PRP_ROLL_MSG = "prepare_to_rollback"
 PEER_ROLL_BACK = "roll_back"
 DO_NOT_ROLL_BACK = "do_not_roll_back"
+
 #State Variables:
 class cohortCustomerClass:
     name = ""
@@ -30,6 +31,7 @@ class cohortCustomerClass:
     rollCohort = []
     chkptCohort = []
 
+    #print function
     def print_data(self):
         print("\n========Customer Details:==========")
         print("Name: ", self.name)
@@ -43,6 +45,7 @@ class cohortCustomerClass:
         print("rollCohort: ", self.rollCohort)
         print("chkptCohort: ", self.chkptCohort)
 
+    #intialization function
     def initializeData(self):
         global cohort_tuple
         if cohort_tuple:
@@ -96,19 +99,19 @@ def bankWorker(input_command, clientPortBank, clientPortPeer):
 
     msg_cmd = command_bank.split(" ")
     if(msg_cmd[0] == "open" and rcvd_msg == "SUCCESS"):
-        #object update
+        #object update on opening bank account
         cohortCustomer.name = msg_cmd[1]
         cohortCustomer.currentBalance = int(msg_cmd[2])
         cohortCustomer.ipAddress = msg_cmd[3]
         print("Customer: " + cohortCustomer.name + "\nBalance: " + str(cohortCustomer.currentBalance))
-    
+    #if the new-cohort is created and the response is sent, the details are sent to peers
     if(msg_cmd[0] == "new-cohort" and rcvd_msg != "FAILURE"):
         cohort_tuple = (eval(rcvd_msg))
         sendCohortDetailsToPeers(cohort_tuple, clientPortBank, clientPortPeer)
-    
+    #delete cohort 
     if(msg_cmd[0] == "delete-cohort" and rcvd_msg == "SUCCESS"):
         cohort_tuple.clear()
-    
+    #exit
     if(msg_cmd[0] == "exit" and rcvd_msg == "SUCCESS"):
         exit_flag = True
         clientSocketBank.close()
@@ -124,7 +127,7 @@ def peerWorker(input_command):
             print("\nCLIENT->PEER:: Inside Peer Function.\n")
             command_peer = input_command
             print("PEER:: command: ", command_peer)
-            
+            #transfer money
             if (command[0] == "transfer"):
                 inCohortFlag = False
                 for tuple in cohort_tuple:
@@ -144,8 +147,8 @@ def peerWorker(input_command):
                             cohortCustomer.print_data()
                             clientSocketPeer.sendto(receiverMessage.encode(),(recieverTuple['ip_address'], int(recieverTuple['port2'])))
                 if(inCohortFlag != True):
-                    print("PEER:: Receiver is not in your cohort. Enter another")
-
+                    print("PEER:: Receiver is not in your cohort.")
+            #lost-transfer
             elif(command[0] == "lost-transfer"):
                 print("\nPEER:: Simulating a lost transfer...")
                 inCohortFlag = False
@@ -165,7 +168,7 @@ def peerWorker(input_command):
                             print("\nPEER:: Transfer Lost")
                                 
                 if(inCohortFlag != True):
-                    print("PEER:: Receiver is not in your cohort. Enter another")
+                    print("PEER:: Receiver is not in your cohort.")
             
             elif(command[0] == "checkpoint"):
                 checkpoint()
@@ -178,7 +181,6 @@ def peerWorker(input_command):
                 rcvd_msg = peerResponse.decode()
                 print(rcvd_msg)
 
-
 #self functions:
 def self_functions(input_command):
     global exit_flag
@@ -189,29 +191,31 @@ def self_functions(input_command):
             print("PEER:: Performing a deposit of " + cmnd[1] + " USD.")
             #object update
             cohortCustomer.currentBalance = cohortCustomer.currentBalance + int(cmnd[1])
-            print("PEER:: Latest bank balance: ", cohortCustomer.currentBalance)
+            print("PEER:: Updated bank balance: ", cohortCustomer.currentBalance)
         elif(cmnd[0] == "withdrawal"):
             if(cohortCustomer.currentBalance < int(cmnd[1])):
                 print("PEER:: Withdrawal cannot be performed due to insufficient funds.")
-                print("Bank balance: ", cohortCustomer.currentBalance)
+                print("PEER:: Bank balance: ", cohortCustomer.currentBalance)
             else:
-                print("PEER:: Withdrawal of amount " + cmnd[1] + " USD.\n")
+                print("PEER:: Withdrawal of amount " + cmnd[1] + " USD.")
                 #object update
                 cohortCustomer.currentBalance = cohortCustomer.currentBalance - int(cmnd[1])
                 print("PEER:: Updated bank balance: ", cohortCustomer.currentBalance)
         else:
             print("PEER:: Wrong command.")
 
-
+#checkpoint algorithm
 def checkpoint():
     global exit_flag
     global cohort_tuple
 
     if not exit_flag:
         print("\nPEER:: Initiating checkpoint algortihm...")
+        #sender taking a tentative checkpoint
         local_tentative_chkpt()
         tnt_yes = True
         print(f"PEER:: Customers in checkpoint cohort: {cohortCustomer.chkptCohort} \n")
+        #sending to take tentative checkpoint
         for cust in cohortCustomer.chkptCohort:
             cmd = TAKE_TNT_CKPT + ' ' + cohortCustomer.name + ' ' + str(cohortCustomer.lastLabelrecvd[cust])
             receiverTuple = {}
@@ -227,29 +231,25 @@ def checkpoint():
             if(rcvd_msg[0] == cust) and (rcvd_msg[1] == 'No'):
                 tnt_yes = False
                 break
-        
+        #once we receive yes from all the customers, we make the tentative checkpoint to permanent
         if(tnt_yes):
             print("PEER:: Making a permanent checkpoint.")
             chkptchrt = cohortCustomer.chkptCohort
-            print("DEBUG:: checkpoint cohort: ", chkptchrt)
+            #sender taking a permanent checkpoint
             local_permanent_chkpt()
             for cust in chkptchrt:
-                print("DEBUG:: Inside for loop..")
                 cmd = MK_TNT_CKPT_PRMNT
                 receiverTuple = {}
                 for tuple in cohort_tuple:
                     if(tuple['name'] == cust):
                         receiverTuple = tuple
-                        print(f"DEBUG:: found customer {cust}")
                         break
                 print(f"PEER:: Sending a '{cmd}' to '{cust}'")
                 clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
-            print("DEBUG:: Permanent checkpoint completed.")
-            print("DEBUG:: Latest Customer details")
             cohortCustomer.chkptCohort.clear()
             cohortCustomer.print_data()
             tentativeCheckPoint.chkptCohort.clear()
-
+        #if we dont get yes from all customers, we send undo checkpoint
         else:
              for cust in cohortCustomer.chkptCohort:
                 cmd = UNDO_TNT_CKPT
@@ -261,16 +261,18 @@ def checkpoint():
                 print(f"PEER:: Sending a '{cmd}' to '{cust}'")
                 clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
 
-
+#take tentative checkpoint
 def take_tentative_chkpt(senderPeer, lastReceieved):
     print("PEER:: Inside taking tentative check point")
     print("PEER:: Take tentative Checkpoint received from customer : ", senderPeer)
+
+    #local tentative checkpoint at receiver
     if ((cohortCustomer.oKToTakeChkPoint == "Yes") and (lastReceieved >= cohortCustomer.firstLabelSent[senderPeer] > 0)):
         print("PEER:: Taking a tentative check point.")
         local_tentative_chkpt()
         tentativeCheckPoint.print_data()
-
         tnt_yes = True
+        #sending tentative checkpoint to receiver
         for cust in cohortCustomer.chkptCohort:
             cmd = TAKE_TNT_CKPT + ' ' + cohortCustomer.name + ' ' + str(cohortCustomer.lastLabelrecvd[cust])
             receiverTuple = {}
@@ -278,14 +280,13 @@ def take_tentative_chkpt(senderPeer, lastReceieved):
                 if(tuple['name'] == cust):
                     receiverTuple = tuple
                     break
-
             clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
             peerResponse, peerAddress = clientSocketPeer.recvfrom(2048)
             rcvd_msg = peerResponse.decode().split(' ')
             if(rcvd_msg[0] == cust) and (rcvd_msg[1] == 'No'):
                 tnt_yes = False
                 break
-        
+        #if all process send yes, we send okay to take checkpoint else no
         if(tnt_yes):
             cohortCustomer.oKToTakeChkPoint = "Yes"
         else:
@@ -300,42 +301,46 @@ def take_tentative_chkpt(senderPeer, lastReceieved):
     print(f"PEER:: Sending reply command '{cmd}'")
     clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
 
-
+#helper function
 def local_tentative_chkpt():
     print("Saving to tentative checkpoint.")
     tentativeCheckPoint.name = cohortCustomer.name
     tentativeCheckPoint.currentBalance = cohortCustomer.currentBalance
     tentativeCheckPoint.ipAddress = cohortCustomer.ipAddress
-    tentativeCheckPoint.firstLabelSent = cohortCustomer.firstLabelSent
-    tentativeCheckPoint.lastLabelrecvd = cohortCustomer.lastLabelrecvd
-    tentativeCheckPoint.lastLabelSent = cohortCustomer.lastLabelSent
     tentativeCheckPoint.willingToRollBack = cohortCustomer.willingToRollBack
     tentativeCheckPoint.resumeExecution = cohortCustomer.resumeExecution
     tentativeCheckPoint.oKToTakeChkPoint = cohortCustomer.oKToTakeChkPoint
-    tentativeCheckPoint.rollCohort = cohortCustomer.rollCohort
-    tentativeCheckPoint.chkptCohort = cohortCustomer.chkptCohort
     return
 
+#helper function
 def local_permanent_chkpt():
+    global cohort_tuple
     print("\nPEER:: Making a permanent Checkpoint.")
-    cohortCustomer.lastLabelSent = cohortCustomer.firstLabelSent # updating last label sent
-    tentativeCheckPoint.lastLabelSent = cohortCustomer.lastLabelSent
+    
+    for key in cohortCustomer.firstLabelSent:
+        cohortCustomer.lastLabelSent[key] = cohortCustomer.firstLabelSent[key]
+
+    for key in tentativeCheckPoint.firstLabelSent:
+        tentativeCheckPoint.lastLabelSent[key] = tentativeCheckPoint.firstLabelSent[key]
 
     permanentCheckPoint.name = tentativeCheckPoint.name
     permanentCheckPoint.currentBalance = tentativeCheckPoint.currentBalance
     permanentCheckPoint.ipAddress = tentativeCheckPoint.ipAddress
-    permanentCheckPoint.firstLabelSent = tentativeCheckPoint.firstLabelSent
-    permanentCheckPoint.lastLabelrecvd = tentativeCheckPoint.lastLabelrecvd
-    permanentCheckPoint.lastLabelSent = tentativeCheckPoint.lastLabelSent
     permanentCheckPoint.willingToRollBack = tentativeCheckPoint.willingToRollBack
     permanentCheckPoint.resumeExecution = tentativeCheckPoint.resumeExecution
     permanentCheckPoint.oKToTakeChkPoint = tentativeCheckPoint.oKToTakeChkPoint
-    permanentCheckPoint.rollCohort = tentativeCheckPoint.rollCohort
-    #tentativeCheckPoint.chkptCohort.clear()
+
+    if cohort_tuple:
+        for cohortPeer in cohort_tuple:
+            permanentCheckPoint.firstLabelSent.update({cohortPeer['name'] : 0})
+            permanentCheckPoint.lastLabelrecvd.update({cohortPeer['name'] : 0})
+            permanentCheckPoint.lastLabelSent.update({cohortPeer['name'] : 999})
+
     permanentCheckPoint.print_data()
     print("\n")
     return
 
+#making permanent checkpoint
 def make_permanent_chkpt():
     print("PEER:: Inside permanent checkpoint")
     local_permanent_chkpt()
@@ -348,8 +353,7 @@ def make_permanent_chkpt():
                 break
         clientSocketPeer.sendto(cmd.encode(), (receiverTuple['ip_address'], int(receiverTuple['port2'])))
 
-
-
+#undo tentative checkpoint
 def undo_tentative_chkpt():
     print("Inside undo tentative checkpoint")
 
@@ -382,13 +386,18 @@ def rollback():
                     continue
                 else:
                     clientSocketPeer.sendto(PEER_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
+            cohortCustomer.rollCohort = []
+            cohortCustomer.chkptCohort = []
+            print("\nPEER:: Data after rollback.")
+            cohortCustomer.print_data()
         else:
             for peer in cohortCustomer.rollCohort:
                 if(peer['name'] == cohortCustomer.name):
                     continue
                 else:
                     clientSocketPeer.sendto(DO_NOT_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))     
-    
+
+#prepare to rollback function
 def prepare_to_rollback(senderPeer, lastSent):
     print("\nPEER:: Preparing to rollback...")
     if ((cohortCustomer.willingToRollBack == "Yes") and (cohortCustomer.lastLabelrecvd[senderPeer] > int(lastSent)) and (cohortCustomer.resumeExecution=='Yes')):
@@ -421,38 +430,33 @@ def prepare_to_rollback(senderPeer, lastSent):
             break       
     clientSocketPeer.sendto(cmnd.encode(),(receiverTuple['ip_address'], int(receiverTuple['port2'])))
 
+#helper fucntion
 def loc_roll_back():
+    global cohort_tuple
     cohortCustomer.name = permanentCheckPoint.name
     cohortCustomer.currentBalance = permanentCheckPoint.currentBalance
     cohortCustomer.ipAddress = permanentCheckPoint.ipAddress
-    cohortCustomer.firstLabelSent = permanentCheckPoint.firstLabelSent
-    cohortCustomer.lastLabelrecvd = permanentCheckPoint.lastLabelrecvd
-    cohortCustomer.lastLabelSent = permanentCheckPoint.lastLabelSent
     cohortCustomer.willingToRollBack = permanentCheckPoint.willingToRollBack
     cohortCustomer.resumeExecution = permanentCheckPoint.resumeExecution
     cohortCustomer.oKToTakeChkPoint = permanentCheckPoint.oKToTakeChkPoint
-    print("\nPEER:: Data after rollback.")
-    cohortCustomer.print_data()
+    if cohort_tuple:
+        for cohortPeer in cohort_tuple:
+            cohortCustomer.firstLabelSent.update({cohortPeer['name'] : 0})
+            cohortCustomer.lastLabelrecvd.update({cohortPeer['name'] : 0})
+            cohortCustomer.lastLabelSent.update({cohortPeer['name'] : 999})
 
+#rolling back function
 def peer_roll_back():
-    '''if(cohortCustomer.resumeExecution == "No"):
-        cohortCustomer.name = permanentCheckPoint.name
-        cohortCustomer.currentBalance = permanentCheckPoint.currentBalance
-        cohortCustomer.ipAddress = permanentCheckPoint.ipAddress
-        cohortCustomer.firstLabelSent = permanentCheckPoint.firstLabelSent
-        cohortCustomer.lastLabelrecvd = permanentCheckPoint.lastLabelrecvd
-        cohortCustomer.lastLabelSent = permanentCheckPoint.lastLabelSent
-        cohortCustomer.willingToRollBack = permanentCheckPoint.willingToRollBack
-        cohortCustomer.resumeExecution = permanentCheckPoint.resumeExecution
-        cohortCustomer.oKToTakeChkPoint = permanentCheckPoint.oKToTakeChkPoint
-        print("\nPEER:: Data after rollback.")
-        cohortCustomer.print_data()'''
     loc_roll_back()
     for peer in cohortCustomer.rollCohort:
         if(peer['name'] == cohortCustomer.name):
             continue 
         clientSocketPeer.sendto(PEER_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
+    print("\nPEER:: Data after rollback.")
+    cohortCustomer.rollCohort.clear()
+    cohortCustomer.print_data()
 
+#do not rollback function
 def do_not_roll_back():
     cohortCustomer.resumeExecution = "Yes"
     print("PEER:: Not rolling back.")
@@ -460,8 +464,6 @@ def do_not_roll_back():
         if(peer['name'] == cohortCustomer.name):
             continue 
         clientSocketPeer.sendto(DO_NOT_ROLL_BACK.encode(),(peer['ip_address'],int(peer['port2'])))
-
-#rollback end
 
 #main function
 if __name__ == "__main__":
