@@ -4,7 +4,7 @@ import random
 
 print("********** CHECKPOINT: Bank Process **********")
 
-#Input port numbers
+#Input port numbers from user
 while (True):
     serverPort = int(input("BANK:: Enter a port number from 8500 - 8999: "))
     if 8500 <= serverPort <=8999:
@@ -12,7 +12,7 @@ while (True):
     else:
         print("BANK:: Wrong port number")
 
-#create socket
+#create socket function called
 serverSocket = socket(AF_INET, SOCK_DGRAM)
 serverSocket.bind(('', serverPort))
 print("\nBANK:: Bank Socket created successfully.")
@@ -23,7 +23,7 @@ customer_fields = ['name', 'balance', 'ip_address', 'port1', 'port2', 'cohort', 
 customers = []
 cohortNumber = 0
 
-# Check if customer data file exists, create it if it doesn't
+# Create customer data file if it doesn't exist
 try:
     with open(customer_data_file, "r") as file:
         reader = csv.DictReader(file)
