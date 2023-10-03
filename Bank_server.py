@@ -2,7 +2,7 @@ from socket import *
 import csv
 import random
 
-print("********** CHECKPOINT: Bank Process **********")
+print("********* CHECKPOINT: Bank Process **********")
 
 #Input port numbers from user
 while (True):
