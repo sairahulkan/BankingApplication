@@ -109,4 +109,4 @@ This project is a comprehensive application designed for managing bank processes
 
 ### Exiting the Application
 
-To exit the application, use the `exit` command in the customer process. This will close the sockets and end the program.
+To exit the application, use the `exit` command in the customer process. This will close the sockets and end program.
